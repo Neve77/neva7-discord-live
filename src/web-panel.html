@@ -1,0 +1,171 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101019">
+  <title>Neva7 · Central de controle</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Ir para o conteúdo</a>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-voice" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l12-3v13M9 8l12-3"/><ellipse cx="6" cy="18" rx="3" ry="3"/><ellipse cx="18" cy="15" rx="3" ry="3"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a3 3 0 0 1-3 3H8l-5 4V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3ZM7 8h10M7 12h6"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7V2m0 5h-5M4 17v5m0-5h5M20 7a9 9 0 0 0-15-2M4 17a9 9 0 0 0 15 2"/></symbol>
+  </svg>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="#sessao" aria-label="Neva7, início"><span class="brand-mark">n7</span><span>neva<span class="brand-seven">7</span><small>seu espaço no Discord</small></span></a>
+      <p class="nav-label">PAINEL DE CONTROLE</p>
+      <nav aria-label="Navegação principal">
+        <a href="/live"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Conversa Live · dashboard</a>
+        <a href="#sessao" data-view="sessao" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-voice"/></svg>Call e voz</a>
+        <a href="#musica" data-view="musica"><svg class="icon" aria-hidden="true"><use href="#i-music"/></svg>Música</a>
+        <a href="#mensagens" data-view="mensagens"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg>Mensagens</a>
+        <a href="#configuracoes" data-view="configuracoes"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg>Configurações</a>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="online-card"><i id="onlineDot" aria-hidden="true"></i><div><strong id="connection">Carregando…</strong><small id="accountName">Conectando ao painel</small></div></div>
+        <button class="text-button danger" id="shutdown">Desligar a Neva7</button>
+        <p class="local-note">Painel local · só neste computador</p>
+      </div>
+    </aside>
+
+    <main id="main" tabindex="-1">
+      <header class="topbar">
+        <div><p class="eyebrow">TUDO NO SEU RITMO</p><h1>Controle da <em>Neva7</em></h1><p class="subtitle" id="viewDescription">Entre na call, ajuste a voz e comece a conversa.</p></div>
+        <div class="top-actions"><span class="sync-status" id="syncStatus">Conectando…</span><button class="ghost icon-button" id="refresh" aria-label="Atualizar painel" title="Atualizar painel"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg></button></div>
+      </header>
+
+      <div class="notice" id="connectionBanner" role="status" hidden><div><strong id="bannerTitle"></strong><p id="bannerText"></p></div><a class="button ghost" href="#configuracoes" id="bannerAction">Configurar conexão</a></div>
+      <ol class="setup-steps" aria-label="Etapas para conversar" id="setupSteps">
+        <li id="stepConnection"><a href="#configuracoes"><span>1</span><div>Conectar conta<small>Bot ou conta pessoal</small></div></a></li>
+        <li id="stepServer"><a href="#sessao"><span>2</span><div>Escolher servidor<small>Defina seu destino</small></div></a></li>
+        <li id="stepCall"><a href="#sessao"><span>3</span><div>Entrar na call<small>Pronto para conversar</small></div></a></li>
+      </ol>
+
+      <section class="control-card destination-card" id="destination" aria-labelledby="destinationTitle">
+        <div class="card-title"><div><p class="eyebrow">DESTINO</p><h2 id="destinationTitle">Onde vamos conversar?</h2></div><span class="tag" id="callTag">Fora da call</span></div>
+        <div class="select-grid">
+          <label>Servidor<select id="serverSelect" disabled><option value="">Carregando servidores…</option></select></label>
+          <label>Canal de texto<select id="textSelect" disabled><option value="">Escolha um servidor primeiro</option></select></label>
+          <label>Call<select id="voiceSelect" disabled><option value="">Escolha um servidor primeiro</option></select></label>
+        </div>
+        <div class="destination-footer"><p class="hint" id="destinationHint">Conecte sua conta para carregar os servidores.</p><div class="button-row"><button class="ghost" data-action="leave" data-group="call" disabled>Sair da call</button><button class="primary" id="join" disabled>Entrar na call <span aria-hidden="true">↗</span></button></div></div>
+      </section>
+      <div class="action-feedback" id="actionFeedback" role="status" hidden><span id="actionFeedbackText"></span><button class="text-button" id="dismissFeedback" aria-label="Fechar mensagem">×</button></div>
+
+      <section class="view" id="sessao" aria-labelledby="sessionTitle">
+        <div class="section-heading"><div><p class="eyebrow">CONVERSA AO VIVO</p><h2 id="sessionTitle" tabindex="-1">Sua voz na call</h2></div><span class="tag" id="ttsTag">Voz</span></div>
+        <div class="session-grid">
+          <article class="control-card speech-card">
+            <div class="card-title"><h3>O que vamos falar?</h3><span class="tag" id="speechDestination">Entre em uma call</span></div>
+            <label class="sr-only" for="speechText">Texto para falar na call</label>
+            <textarea id="speechText" maxlength="400" placeholder="Escreva uma frase para a Neva7 falar…" aria-describedby="speechHint"></textarea>
+            <div class="field-footer"><span id="speechHint">Ctrl + Enter para falar</span><span id="speechCount">0 / 400</span></div>
+            <div class="button-row"><button class="primary" id="say" disabled><svg class="icon" aria-hidden="true"><use href="#i-voice"/></svg>Falar agora</button><button class="ghost" data-action="repeat" data-group="speech" disabled>Repetir última</button></div>
+            <button class="text-button" id="announce" disabled>Falar e enviar no chat ↗</button>
+            <p class="hint" id="speechUnavailable">Entre em uma call para usar a voz.</p>
+          </article>
+          <article class="control-card voice-card">
+            <div class="voice-presence"><div class="voice-avatar" id="voiceInitial" aria-hidden="true">N</div><div><h3 id="activityLabel">Fora da call</h3><p class="hint" id="voiceDescription">Sua voz fica pronta ao entrar.</p></div><div class="voice-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+            <div class="button-row equal"><button class="ghost" data-action="listening" id="listening" aria-pressed="false" disabled>Ligar escuta</button><button class="danger soft" data-action="stopAll" disabled>Parar tudo</button></div>
+            <section class="voice-control-group" aria-labelledby="voiceSettingsTitle">
+              <div class="group-heading"><div><p class="eyebrow">VOZ</p><h3 id="voiceSettingsTitle">Timbre e ritmo</h3></div><span class="tag" id="voiceProfileTag">—</span></div>
+              <div class="select-grid compact"><label>Mostrar<select id="voiceFilter"><option value="all">Todas as vozes</option><option value="feminino">Timbre feminino</option><option value="masculino">Timbre masculino</option><option value="neutro">Timbre neutro</option></select></label><label>Voz<select id="voiceSetting"></select></label></div>
+              <p class="voice-profile" id="voiceProfile">Escolha uma voz para ver seu perfil.</p>
+              <details class="voice-catalog"><summary>Catálogo de vozes e estilos</summary><p class="hint" id="voiceProfileNote"></p><ul id="voiceCatalog" aria-label="Catálogo de vozes"></ul></details>
+            </section>
+            <div class="range-line"><label for="speed">Velocidade <output id="speedValue" for="speed">1×</output></label><input id="speed" type="range" min="0.25" max="4" value="1" step="0.05" disabled><div class="range-ends"><span>Mais lenta</span><span>Mais rápida</span></div></div>
+            <div class="range-line"><label for="volume">Volume <output id="volumeValue" for="volume">100%</output></label><input id="volume" data-volume type="range" min="0" max="200" value="100" step="5" disabled></div>
+            <section class="voice-control-group personality-group" aria-labelledby="personalityTitle">
+              <div class="group-heading"><div><p class="eyebrow">CONVERSA</p><h3 id="personalityTitle">Emoção e interação</h3></div><span class="tag" id="emotionCurrent">Natural</span></div>
+              <label>Emoção base<select id="emotionSetting"></select></label><p class="hint" id="emotionDescription">Escolha o tom principal da conversa.</p>
+              <label for="interactionSetting">Ajustes de interação<textarea id="interactionSetting" maxlength="700" placeholder="Ex.: seja mais acolhedora, faça perguntas curtas e evite falar sobre spoilers." aria-describedby="interactionHint interactionCount"></textarea></label>
+              <div class="field-footer"><span id="interactionHint">Complementa a emoção selecionada.</span><span id="interactionCount">0 / 700</span></div>
+              <div class="button-row"><button class="primary" id="saveInteraction">Salvar ajustes</button><button class="ghost" id="clearInteraction">Limpar ajustes</button></div>
+              <details class="custom-personality"><summary>Criar uma personalidade do zero</summary><p class="hint">Isso substitui a emoção base até você escolher outra emoção.</p><label for="customEmotionSetting">Descreva a personalidade<textarea id="customEmotionSetting" maxlength="700" placeholder="Ex.: fala como uma narradora calma, curiosa e bem-humorada; nunca usa apelidos."></textarea></label><div class="field-footer"><span>Use quando quiser uma persona totalmente diferente.</span><span id="customEmotionCount">0 / 700</span></div><button class="ghost" id="saveCustomEmotion">Aplicar personalidade personalizada</button></details>
+            </section>
+          </article>
+        </div>
+        <section class="metrics-grid" aria-label="Tempo das últimas respostas">
+          <article class="metric-featured"><span>RESPOSTA NA CALL</span><strong id="metricVoiceReply">—</strong><small>Do fim da sua fala ao início do áudio</small><small data-metric-summary="voiceReply"></small></article>
+          <article><span>TRANSCRIÇÃO</span><strong id="metricStt">—</strong><small>Entender o que você disse</small><small data-metric-summary="stt"></small></article>
+          <article><span>IA · RESPOSTA COMPLETA</span><strong id="metricLlm">—</strong><small>Terminar a resposta</small><small data-metric-summary="llm"></small></article>
+          <article><span>TEXTO NO DISCORD</span><strong id="metricReply">—</strong><small>Da mensagem recebida ao envio</small><small data-metric-summary="reply"></small></article>
+          <article><span>PRIMEIRO TEXTO DA IA</span><strong id="metricFirstToken">—</strong><small>Início da geração de texto</small><small data-metric-summary="firstToken"></small></article>
+          <article><span>PRIMEIRO TRECHO PARA VOZ</span><strong id="metricFirstSentence">—</strong><small>Texto disponível para começar a síntese</small><small data-metric-summary="firstSentence"></small></article>
+          <article><span>PRIMEIRO ÁUDIO GERADO</span><strong id="metricFirstAudio">—</strong><small>Do pedido de síntese ao primeiro áudio</small><small data-metric-summary="firstAudio"></small></article>
+          <article><span>MENSAGEM → VOZ NA CALL</span><strong id="metricTextVoiceReply">—</strong><small>Da mensagem recebida ao início do áudio</small><small data-metric-summary="textVoiceReply"></small></article>
+        </section>
+      </section>
+
+      <section class="view" id="musica" aria-labelledby="musicTitle" hidden>
+        <div class="section-heading"><div><p class="eyebrow">NO MESMO RITMO</p><h2 id="musicTitle" tabindex="-1">Música para a call</h2></div></div>
+        <div class="session-grid">
+          <article class="control-card">
+            <label for="musicQuery">Adicionar à fila</label>
+            <div class="input-action"><input id="musicQuery" maxlength="500" placeholder="Nome, artista ou link do YouTube"><button class="primary" id="play" disabled>Adicionar</button></div>
+            <p class="hint" id="musicHint">Entre em uma call para tocar música.</p>
+            <div class="now-playing"><div class="record-art" aria-hidden="true"><svg class="icon"><use href="#i-music"/></svg></div><div><span class="eyebrow" id="musicState">NADA TOCANDO</span><h3 id="currentTrack">Sua próxima música começa aqui</h3></div></div>
+            <div class="button-row"><button class="ghost" data-action="skip" disabled>Pular faixa</button><button class="ghost danger" data-action="stopMusic" disabled>Parar e limpar fila</button></div>
+            <p class="field-error" id="musicError" hidden></p>
+            <div class="range-line"><label for="musicVolume">Volume <output id="musicVolumeValue" for="musicVolume">100%</output></label><input id="musicVolume" data-volume type="range" min="0" max="200" value="100" step="5" disabled></div>
+          </article>
+          <article class="control-card queue-card"><div class="card-title"><h3>Fila da call</h3><span class="tag" id="queueCount">0 faixas</span></div><div class="empty-state" id="queueEmpty"><svg class="icon" aria-hidden="true"><use href="#i-music"/></svg><strong>Espaço para suas favoritas</strong><p>Adicione uma música pelo nome ou cole um link.</p></div><ol id="musicQueue" class="music-queue" aria-label="Músicas na fila"></ol></article>
+        </div>
+      </section>
+
+      <section class="view" id="mensagens" aria-labelledby="messagesTitle" hidden>
+        <div class="section-heading"><div><p class="eyebrow">CONTINUE O PAPO</p><h2 id="messagesTitle" tabindex="-1">Mensagens</h2></div><span class="tag" id="textChannelTag">Sem canal selecionado</span></div>
+        <article class="control-card message-card">
+          <label for="chatText">Sua mensagem</label><textarea id="chatText" maxlength="1900" placeholder="Escreva para o canal selecionado…" aria-describedby="chatHint"></textarea>
+          <div class="field-footer"><span id="chatHint">Ctrl + Enter para enviar</span><span id="chatCount">0 / 1900</span></div>
+          <details class="mention-picker"><summary>Mencionar uma pessoa <span>opcional</span></summary><div class="mention-grid"><label>Buscar pelo nome<div class="input-action"><input id="memberQuery" maxlength="80" placeholder="Pelo menos 2 letras"><button class="ghost" id="searchMembers" disabled>Buscar</button></div></label><label>Pessoa<select id="memberSelect" disabled><option value="">Busque alguém primeiro</option></select></label></div><p class="hint" id="memberHint">Escolha uma pessoa para enviar uma menção junto da mensagem.</p></details>
+          <div class="button-row"><button class="primary" id="send" disabled>Enviar mensagem</button><button class="ghost" id="mention" disabled>Enviar com menção</button></div><p class="hint" id="messageUnavailable">Selecione um canal de texto acima.</p>
+        </article>
+        <div class="secondary-actions"><button class="ghost" data-action="summarize" disabled>Resumir conversa do canal</button><button class="text-button" data-action="clearContext" disabled>Limpar contexto da pesquisa</button></div>
+      </section>
+
+      <section class="view" id="configuracoes" aria-labelledby="settingsTitle" hidden>
+        <div class="section-heading"><div><p class="eyebrow">DO SEU JEITO</p><h2 id="settingsTitle" tabindex="-1">Configurações</h2></div></div>
+        <section class="control-card connection-card" id="conta" aria-labelledby="connectionTitle">
+          <div class="card-title"><div><h3 id="connectionTitle">Conexão com o Discord</h3><p class="hint">Escolha qual conta a Neva7 vai usar.</p></div><span class="tag" id="connectionModeTag">Carregando…</span></div>
+          <form id="connectionForm" autocomplete="off">
+            <div class="select-grid compact"><label>Tipo de conta<select id="connectionMode" name="mode"><option value="bot">Bot oficial</option><option value="selfbot">Selfbot · conta pessoal</option></select></label><label><span id="connectionTokenLabel">Token do bot</span><div class="password-field"><input id="connectionToken" type="password" name="discord-token" maxlength="512" autocomplete="new-password" spellcheck="false" autocapitalize="none" aria-describedby="tokenHelp" placeholder="Cole o token aqui"><button type="button" class="text-button" id="revealToken" aria-pressed="false" aria-label="Mostrar token">Mostrar</button></div></label></div>
+            <p class="hint" id="tokenHelp">O token é salvo somente neste computador.</p>
+            <p class="connection-notice" id="selfbotNotice" hidden>O Discord proíbe automatizar contas pessoais e pode encerrar a conta. <a href="https://support.discord.com/hc/en-us/articles/115002192352-Automated-User-Accounts-Self-Bots" target="_blank" rel="noopener noreferrer">Ver política do Discord</a>.</p>
+            <p class="field-error" id="connectionError" role="alert" hidden></p>
+            <div class="form-footer"><button class="primary" id="saveConnection" type="submit" disabled>Salvar conexão</button><p class="hint">Depois de salvar, reinicie o programa para aplicar.</p></div><p class="connection-message" id="connectionMessage" role="status"></p>
+          </form>
+        </section>
+        <section class="control-card connection-card" id="presenca" aria-labelledby="presenceTitle">
+          <div class="card-title"><div><h3 id="presenceTitle">Atividade no Discord</h3><p class="hint">Mostrada no perfil do bot e atualizada na hora.</p></div><span class="tag" id="presenceMode">Bot oficial</span></div>
+          <form id="presenceForm">
+            <div class="select-grid compact"><label>Status<select id="presenceStatus"><option value="online">Online</option><option value="idle">Ausente</option><option value="dnd">Não perturbe</option><option value="invisible">Invisível</option></select></label><label>Tipo<select id="presenceType"><option value="0">Jogando</option><option value="2">Ouvindo</option><option value="3">Assistindo</option><option value="5">Competindo em</option><option value="1">Transmitindo</option></select></label></div>
+            <div class="select-grid compact"><label>Atividade<input id="presenceName" maxlength="128" placeholder="Ex.: Conversando no Discord" required></label><label>Detalhe opcional<input id="presenceState" maxlength="128" placeholder="Ex.: Pronta para ajudar"></label></div>
+            <label id="presenceUrlField" hidden>Link da transmissão<input id="presenceUrl" type="url" maxlength="512" placeholder="https://twitch.tv/seu-canal"></label>
+            <div class="form-footer"><button class="primary" id="savePresence" type="submit">Atualizar atividade</button><p class="hint">A bio/About Me do bot não pode ser alterada pela API do Discord; edite-a no Developer Portal.</p></div>
+          </form>
+        </section>
+        <section class="invite-card" id="botInvite" aria-labelledby="inviteTitle"><div><p class="eyebrow">CONVIDE A NEVA7</p><h3 id="inviteTitle">Leve para outro servidor</h3><p class="hint" id="inviteHelp">Conecte o bot para gerar o convite.</p></div><div class="invite-controls"><label for="inviteLink">Link de convite</label><input id="inviteLink" type="text" readonly placeholder="Aguardando conexão…" spellcheck="false"><div class="button-row"><a class="button primary" id="openInvite" target="_blank" rel="noopener noreferrer" aria-disabled="true" tabindex="-1">Adicionar ao servidor ↗</a><button class="ghost" id="copyInvite" disabled>Copiar link</button></div></div></section>
+        <article class="control-card automation"><div class="card-title"><div><h3>Como a Neva7 participa</h3><p class="hint">Ajuste o comportamento nas conversas.</p></div></div><div class="toggle-list">
+          <button class="toggle" data-action="autoJoin" aria-pressed="false"><span><strong>Entrar quando mencionada</strong><small>Acompanhar quem chamou para a call.</small></span><b id="autoJoin">Desligado</b></button>
+          <button class="toggle" data-action="replyInText" aria-pressed="false"><span><strong>Também responder no chat</strong><small>Enviar a resposta por escrito no Discord.</small></span><b id="replyInText">Desligado</b></button>
+          <button class="toggle" data-action="alive" aria-pressed="false"><span><strong>Puxar assunto</strong><small>Participar espontaneamente nos canais escolhidos.</small></span><b id="alive">Desligado</b></button>
+          <button class="toggle" data-action="aliveChannel" aria-pressed="false"><span><strong>Usar o canal selecionado</strong><small id="aliveChannelHint">Selecione um canal de texto na aba Call e voz.</small></span><b id="aliveChannels">Desligado</b></button>
+        </div></article>
+      </section>
+
+      <details class="activity-card" id="activity"><summary><span>Atividade do painel</span><span class="hint" id="lastAction">Nenhuma ação nesta sessão</span></summary><div class="activity-content"><div class="button-row"><button class="ghost small" data-action="diagnostics">Ver diagnóstico</button></div><ol id="actionHistory" class="action-history"></ol><pre id="output">Os resultados detalhados aparecem aqui.</pre></div></details>
+      <footer class="page-footer">Neva7 <span>Uma conversa de cada vez.</span></footer>
+    </main>
+  </div>
+  <dialog id="shutdownDialog" aria-labelledby="shutdownTitle" aria-describedby="shutdownDescription"><form method="dialog"><span class="eyebrow">ENCERRAR SESSÃO</span><h2 id="shutdownTitle">Desligar a Neva7?</h2><p id="shutdownDescription">A conexão com o Discord e as calls serão encerradas. Para voltar, abra o programa novamente.</p><div class="button-row"><button class="ghost" value="cancel" autofocus>Continuar no painel</button><button class="danger soft" value="confirm">Desligar</button></div></form></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

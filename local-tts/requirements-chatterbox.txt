@@ -1,0 +1,14 @@
+# Versões do demonstrador oficial pt-BR, sem a interface web hospedada.
+torch==2.8.0
+torchaudio==2.8.0
+numpy==1.26.0
+resampy==0.4.3
+librosa==0.10.0
+s3tokenizer
+transformers==4.46.3
+diffusers==0.29.0
+omegaconf==2.3.0
+resemble-perth==1.0.1
+silero-vad==5.1.2
+conformer==0.3.2
+safetensors

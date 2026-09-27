@@ -1,0 +1,10 @@
+{
+  "model": "gemini-2.5-flash-native-audio-preview-12-2025",
+  "voice": "Kore",
+  "format": "PCM16 LE mono 24000 Hz",
+  "text": "Gemini conectado.",
+  "transcript": "",
+  "generationSeconds": 3.763,
+  "firstAudioSeconds": 2.536,
+  "audioSeconds": 1.48
+}

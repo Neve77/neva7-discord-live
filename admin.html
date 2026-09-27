@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+
+  <!-- Preconnect para recursos externos críticos -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <link rel="dns-prefetch" href="https://accounts.google.com" />
+  <link rel="dns-prefetch" href="https://cdn.nerix.com.br" />
+
+  <!-- Carregar fontes com display=swap para evitar CLS -->
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap"
+    as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript>
+    <link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" />
+  </noscript>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/geist-sans@5.2.5/index.css" />
+
+  <link rel="icon" type="image/png"
+    href="https://cdn.nerix.com.br/LOGOS%20NERIX/favicon-96x96.png" />
+  <link rel="apple-touch-icon" href="https://cdn.nerix.com.br/LOGOS%20NERIX/favicon-96x96.png" />
+  <link rel="apple-touch-icon" sizes="96x96" href="https://cdn.nerix.com.br/LOGOS%20NERIX/favicon-96x96.png" />
+  <link rel="manifest" href="/manifest.json?v=2.0.1" />
+
+  <!-- PWA Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Nerix" />
+
+  <!-- Flag icons - carregar diretamente sem preload para evitar avisos -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons/css/flag-icons.min.css" />
+
+  <title>Nerix</title>
+
+  <!-- Tema + fundo antes do React carregar (evita flash branco no reload) -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('store-theme-storage');
+        var theme = 'dark';
+        if (stored) {
+          var parsed = JSON.parse(stored);
+          if (parsed && parsed.state && parsed.state.theme) theme = parsed.state.theme;
+        }
+        if (theme === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      } catch (e) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
+  <style>
+    html,
+    body,
+    #root {
+      min-height: 100%;
+      margin: 0;
+    }
+
+    html.dark,
+    html.dark body,
+    html.dark #root {
+      background-color: #1a1a1a;
+      color-scheme: dark;
+    }
+
+    html:not(.dark),
+    html:not(.dark) body,
+    html:not(.dark) #root {
+      background-color: #f4f4f5;
+      color-scheme: light;
+    }
+  </style>
+  <script type="module" crossorigin src="/assets/index-LujQzMXi.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-iMytTIiN.js">
+  <link rel="modulepreload" crossorigin href="/assets/router-vendor-gLI3Dac4.js">
+  <link rel="modulepreload" crossorigin href="/assets/oauth-vendor-JfTa1IvT.js">
+  <link rel="modulepreload" crossorigin href="/assets/charts-vendor-5geBHAsE.js">
+  <link rel="modulepreload" crossorigin href="/assets/socket-vendor-CS7XPCxt.js">
+  <link rel="modulepreload" crossorigin href="/assets/i18n-vendor-Bjz9y0Wh.js">
+  <link rel="modulepreload" crossorigin href="/assets/dnd-vendor-2RtkujmC.js">
+  <link rel="stylesheet" crossorigin href="/assets/vendor-PBr-aoJR.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-hjNlXHXo.css">
+</head>
+
+<body>
+  <div id="root"></div>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3ec27e55be78828',t:'MTc5MDAyNjA2Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+
+</html>

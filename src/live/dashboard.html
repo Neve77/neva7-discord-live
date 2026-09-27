@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#10131b"><title>Neva7 · Painel único · Conversa Live</title><link rel="stylesheet" href="/live.css"></head>
+<body>
+  <a class="skip" href="#main">Ir ao conteúdo</a>
+  <aside class="sidebar">
+    <a class="brand" href="/#pipeline"><span class="logo">n7</span><span>neva7<small>CENTRAL DE CONTROLE</small></span></a>
+    <div class="nav-label">ESPAÇO DE TRABALHO</div><nav id="navigation" aria-label="Áreas do dashboard"></nav>
+    <div class="sidebar-foot"><span class="local-dot"></span> Somente neste computador<p class="small-gap">Discord, voz, música e IA no mesmo painel.</p></div>
+  </aside>
+  <main id="main">
+    <header><div class="breadcrumb">WORKSPACE <span>/</span> <span id="breadcrumb">Pipeline</span></div><div class="header-actions"><span id="sync" role="status">Conectando…</span><button id="refresh" class="subtle">Atualizar</button></div></header>
+    <div class="title-row"><div><p class="eyebrow">NEVA7 / SEU DISCORD</p><h1 id="title">O ritmo da conversa.</h1><p id="description">Do primeiro som à próxima resposta. Tudo em um só lugar.</p></div><span class="pill" id="modeBadge">GEMINI LIVE</span></div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <div id="feedback" class="feedback" role="status" hidden></div>
+    <div id="recordingBanner" class="recording-banner" role="status" hidden><strong id="recordingBannerText"></strong><a class="button-link" href="#recordings">Gravações · parar e salvar</a></div>
+    <section class="session-bar" aria-label="Destino no Discord"><div><span class="dot" id="discordDot"></span><strong id="discordState">Discord</strong><small id="callState">Carregando conexão…</small></div><div class="connect-controls"><label class="field" for="guild">Servidor<select id="guild"><option value="">Escolha um servidor</option></select></label><label class="field" for="textChannel">Canal de texto<select id="textChannel"><option value="">Escolha um canal</option></select></label><label class="field" for="channel">Canal de voz<select id="channel"><option value="">Escolha uma call</option></select></label><button id="join" class="primary">Entrar na call</button><button id="leave" class="subtle">Sair</button></div><p id="destinationHelp" class="muted">Escolha o servidor, o canal de mensagens e a call de destino.</p></section>
+    <section id="content" aria-label="Configurações e monitoramento"></section>
+    <footer class="save-bar"><span id="draftStatus">Configurações salvas neste computador</span><div><button id="discard" class="subtle" disabled>Descartar alterações</button><button id="save" class="primary" disabled>Aplicar configurações</button></div></footer>
+    <section class="emergency" aria-label="Controles de segurança"><span>CONTROLE DA SESSÃO</span><div><button data-control="stop" title="Cancela as respostas Live em andamento.">Parar resposta Live</button><button data-classic="stopAll" title="Cancela a fala e a música da call selecionada.">Parar tudo na call</button><button data-control="safe" title="Pausa respostas e mantém a conexão da call.">Safe Mode</button><button data-control="resume" title="Desativa Safe Mode e Kill Switch; permite conversar novamente.">Rearmar</button><button data-control="kill" class="danger" title="Sai de todas as calls e bloqueia novas respostas até rearmar.">■ Kill Switch</button></div></section>
+    <p class="muted small-gap">Safe Mode pausa as respostas. Kill Switch encerra as calls. Rearmar libera a conversa novamente; você escolhe quando entrar na call.</p>
+    <details class="small-gap"><summary>Atividade do painel</summary><ol id="actionHistory" class="events small-gap"></ol><pre id="actionOutput" class="code small-gap">Os resultados de ações, resumos e diagnósticos aparecem aqui.</pre><div class="actions"><button data-classic="diagnostics">Ver diagnóstico</button></div></details>
+    <dialog id="shutdownDialog"><form method="dialog"><h2>Desligar a Neva7?</h2><p>Encerra o programa e as calls. Para voltar, execute o programa novamente.</p><div class="actions"><button value="cancel" autofocus>Cancelar</button><button value="confirm" class="danger">Desligar</button></div></form></dialog>
+  </main><script src="/panel-help.js" defer></script><script src="/panel-classic.js" defer></script><script src="/panel-recordings.js" defer></script><script src="/live.js" defer></script>
+</body></html>

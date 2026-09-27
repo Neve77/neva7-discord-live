@@ -1,0 +1,36 @@
+{
+  "name": "neva7-discord-live",
+  "version": "2.0.0",
+  "description": "Bot oficial Discord com conversa Gemini Live, interrupções e dashboard local",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test test/*.test.js",
+    "preview:live": "node scripts/live-preview.js",
+    "setup:ffmpeg": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-ffmpeg.ps1",
+    "live-audio-check": "node scripts/check-live-audio.js",
+    "doctor": "node scripts/doctor.js",
+    "voice-samples": "node scripts/voice-samples.js",
+    "setup:youtube": "node scripts/setup-youtube.js",
+    "music-check": "node scripts/check-music.js",
+    "setup:chatterbox": "node scripts/setup-chatterbox.js",
+    "chatterbox-test": "node scripts/test-chatterbox.js",
+    "gemini-test": "node scripts/test-gemini-voice.js"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@discordjs/voice": "^0.19.2",
+    "@google/genai": "^2.23.0",
+    "dotenv": "^16.4.5",
+    "edge-tts-universal": "^1.4.0",
+    "openai": "^4.65.0",
+    "opusscript": "^0.0.8",
+    "sodium-native": "^4.1.1",
+    "ws": "^8.18.0"
+  }
+}
