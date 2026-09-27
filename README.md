@@ -1,62 +1,106 @@
-# Bot Discord com voz + emoção
+# Neva7 — IA de voz para Discord
 
-## Conversa Live e dashboard
+<div align="center">
+  <p><strong>Uma companheira de call que escuta, conversa, toca música e reage em tempo real.</strong></p>
+  <p>Gemini Live, interrupção natural de fala, personalidades configuráveis e uma central web completa — tudo rodando no seu computador.</p>
 
-A Central e o Live estão no mesmo painel em **http://127.0.0.1:3210/**; `/live` é um endereço alternativo da mesma interface. O pipeline novo recebe PCM dos participantes enquanto falam, mantém sessões Gemini por participante, coordena respostas e cancela áudio antigo quando alguém interrompe. Use **bot oficial**, `GEMINI_API_KEY` e `VOICE_PIPELINE=live` (padrão). Não é necessário Groq para a conversa Gemini Live. Para usar Gemini também nas respostas de texto, configure `CHAT_MODEL=gemini-3.6-flash`; Groq/OpenAI continuam disponíveis para transcrição no pipeline clássico e no provider opcional Cascade. `TTS_MODE=gemini` seleciona a síntese de voz Gemini no pipeline clássico.
+  [![Node.js](https://img.shields.io/badge/Node.js-22.12%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+  [![Discord](https://img.shields.io/badge/Discord-voz%20e%20texto-5865F2?logo=discord&logoColor=white)](https://discord.com/developers/applications)
+  [![Gemini](https://img.shields.io/badge/Gemini-Live-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+  [![License: MIT](https://img.shields.io/badge/licença-MIT-green.svg)](LICENSE)
+</div>
 
-O painel reúne as 16 áreas Live e as funções existentes de conexão, música, mensagens e automação. Voz e Personalidade incluem também os controles clássicos. Cada controle tem uma explicação. **Inteligência → Idiomas** entende PT-BR, espanhol e inglês, com resposta no idioma da fala por padrão. Começa respondendo somente quando chamado por um dos nomes em `WAKE_WORDS`. Veja [o que cada função faz](docs/PAINEL.md).
+## Visão geral
 
-Para **gravar a call no PC**, entre na call e use **Gravações → Iniciar gravação**. **Parar e salvar** gera `call.wav` com a conversa e preserva as faixas de cada participante, incluindo a saída da Neva7. Os arquivos ficam em `recordings/` e podem ser ouvidos/baixados no próprio painel. A gravação é manual e funciona com Live ou clássico; [instruções e limites](docs/PAINEL.md#gravar-a-call-no-computador).
+A Neva7 é um bot open source para Discord capaz de participar de chamadas de voz, entender cada pessoa separadamente e responder por voz ou texto. O pipeline recebe áudio PCM em tempo real, mantém uma sessão por participante e interrompe a resposta naturalmente quando alguém volta a falar.
+
+Uma central local em **http://127.0.0.1:3210/** reúne conexão, voz, personalidade, idiomas, música, mensagens, automações, métricas e gravações. O projeto oferece suporte a PT-BR, espanhol e inglês, respondendo automaticamente no idioma detectado.
+
+### Destaques
+
+- **Conversa em tempo real:** Gemini Live com áudio transmitido enquanto a pessoa fala.
+- **Interrupção natural:** cancela respostas e áudios antigos quando o interlocutor interrompe.
+- **Várias personalidades:** presets de emoção e personalidade totalmente personalizável.
+- **Central web:** controle do bot, chamadas, mensagens, música e configurações em um só lugar.
+- **Música e efeitos:** YouTube, links diretos, anexos e arquivos locais.
+- **Gravação de calls:** mix final e faixas individuais de cada participante.
+- **Privacidade local:** credenciais, memórias, gravações e logs ficam fora do Git.
+- **Testado:** suíte automatizada para voz, painel, memória, permissões e integrações.
+
+## Início rápido
+
+### Requisitos
+
+- [Node.js 22.12 ou superior](https://nodejs.org/)
+- [FFmpeg](https://ffmpeg.org/)
+- Um bot criado no [Discord Developer Portal](https://discord.com/developers/applications)
+- Uma chave `GEMINI_API_KEY` para a experiência Live
 
 ```powershell
-npm.cmd start
-# Apenas visualizar o dashboard, sem .env, Discord ou chamadas de IA:
-npm.cmd run preview:live
+git clone https://github.com/Neve77/neva7-discord-live.git
+cd neva7-discord-live
+Copy-Item .env.example .env
+npm install
+npm start
+```
+
+Depois, abra **http://127.0.0.1:3210/**. Para conhecer o painel sem configurar Discord ou IA:
+
+```powershell
+npm run preview:live
 # Preview: http://127.0.0.1:3211/
 ```
 
-Leia **[Configuração, arquitetura, fases e limites do Live](docs/LIVE.md)** antes de ativar fallback ou memória permanente. A seção abaixo descreve música, chat e o pipeline clássico, agora acessíveis no mesmo painel. As políticas de retenção do Live se aplicam ao novo pipeline e ao seu fallback Cascade; os módulos clássicos mantêm seus arquivos e configurações próprios, com a política de idioma compartilhada pelo painel.
+> [!IMPORTANT]
+> Nunca publique seu `.env` ou compartilhe tokens do Discord e chaves de API. O arquivo já está protegido pelo `.gitignore`.
 
-Gateway e REST próprios com `ws` e `fetch`. A voz usa `@discordjs/voice` com DAVE, FFmpeg para reprodução e OpusScript para escuta.
+## Como funciona
 
-Bot oficial que escuta a call quando marcado no chat e conversa por voz e texto. Você configura o jeito que ela fala.
+1. Uma pessoa chama o bot por menção ou por uma das palavras definidas em `WAKE_WORDS`.
+2. A Neva7 entra na call, captura cada participante separadamente e detecta o fim da fala.
+3. O Gemini processa a conversa e começa a devolver áudio antes de concluir toda a resposta.
+4. Se alguém interromper, o áudio anterior é cancelado e o novo turno recebe prioridade.
 
-## O que faz
+O modo Live usa **bot oficial**, `GEMINI_API_KEY` e `VOICE_PIPELINE=live` por padrão. Groq e OpenAI continuam disponíveis para transcrição no pipeline clássico e no provider Cascade opcional. Para detalhes técnicos, consulte a [arquitetura do Live](docs/LIVE.md) e o [guia completo do painel](docs/PAINEL.md).
 
-- Quando alguém marca o bot (`@bot`) no chat: responde em texto com a emoção atual
-- Se quem marcou tá em call: entra na mesma call, escuta o microfone, pensa e fala em PT-BR
-- Emoção configurável: `natural, feliz, fria, sedutora, engracada, seria, anime, brava, explosiva, depre, narradora` + custom
+Para gravar uma chamada, use **Gravações → Iniciar gravação** na central. Ao finalizar, o sistema gera `call.wav` e preserva as faixas individuais dos participantes e da Neva7. Veja as [instruções e os limites de gravação](docs/PAINEL.md#gravar-a-call-no-computador).
 
-## Criar o bot (1 vez)
+## Configurar o bot no Discord
 
-1. Vai em `discord.com/developers/applications` > **New Application**, dá um nome
-2. Aba **Bot** > **Reset Token**, copia o token (só aparece uma vez)
-3. Na mesma aba **Bot**, ativa **Message Content Intent** para ler mensagens e **Server Members Intent** para a busca de pessoas da Central web. O código também solicita os eventos de servidores, membros, mensagens e estados de voz.
-4. Aba **OAuth2 > URL Generator**: marca `bot`, permissões `Send Messages`, `Read Message History`, `Connect`, `Speak`, `Use Voice Activity` — abre a URL gerada e convida pro teu servidor
-5. Pega teu ID: Discord > Config > Avançado > ativa **Modo Desenvolvedor**, botão direito no teu perfil > **Copiar ID**
+1. Acesse o [Discord Developer Portal](https://discord.com/developers/applications), selecione **New Application** e escolha um nome.
+2. Em **Bot → Reset Token**, copie o token. Ele será exibido apenas uma vez.
+3. Ative **Message Content Intent** e **Server Members Intent** na mesma página.
+4. Em **OAuth2 → URL Generator**, selecione `bot` e conceda `Send Messages`, `Read Message History`, `Connect`, `Speak` e `Use Voice Activity`.
+5. No Discord, ative **Configurações → Avançado → Modo Desenvolvedor**. Clique com o botão direito no seu perfil e use **Copiar ID**.
 
-## Instalar
+## Instalação detalhada
 
-1. Instala Node 22.12+ e FFmpeg:
-```
+1. Instale Node.js 22.12+ e FFmpeg. No Windows, você pode usar:
+
+```powershell
 winget install Gyan.FFmpeg
 ```
-Fecha e reabre o terminal depois. Confere com `ffmpeg -version`. Se o programa não estiver no PATH, configure `FFMPEG_PATH=C:/caminho/para/ffmpeg.exe` no `.env`.
-2. IA free (sem cartão): cria key em `console.groq.com` > **API Keys**
-3. Copia `.env.example` pra `.env` e preenche:
-```
+
+Feche e abra novamente o terminal, depois confirme com `ffmpeg -version`. Se o executável não estiver no `PATH`, defina `FFMPEG_PATH=C:/caminho/para/ffmpeg.exe` no `.env`.
+
+2. Copie o arquivo de exemplo e preencha pelo menos estas variáveis:
+
+```dotenv
 BOT_TOKEN=token_do_bot
 OWNER_ID=teu_id
-GROQ_API_KEY=gsk_...
+GEMINI_API_KEY=sua_chave_gemini
 ```
 
-3. Instala e roda:
-```
+3. Instale as dependências, execute o diagnóstico e inicie:
+
+```powershell
 npm install
 npm run setup:youtube
 npm run doctor
 npm start
 ```
+
+O Groq e o OpenAI são opcionais. Configure `GROQ_API_KEY` ou `OPENAI_API_KEY` apenas se quiser usar os providers compatíveis do pipeline clássico ou Cascade.
 
 ## Central web
 
