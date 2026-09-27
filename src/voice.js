@@ -6,6 +6,10 @@ const { config } = require('./config');
 const { makeAdapterCreator } = require('./voice-adapter');
 const { getFfmpegPath, hasFfmpeg, runFfmpeg: ff } = require('./ffmpeg');
 const { allocateTemp } = require('./cache');
+const { openYouTubeStream } = require('./youtube');
+const { playResource } = require('./playback');
+const { CallRecordings } = require('./call-recordings');
+const logger = require('./logger');
 const {
   joinVoiceChannel,
   createAudioPlayer,
@@ -37,20 +41,22 @@ function wavBuffer(pcm, sampleRate = 48000, channels = 2) {
 // mp3 -> ogg/opus 48k stereo com o ffmpeg (nativo). Volume aplicado aqui (resource Ogg não tem volume inline).
 async function fileToOpusOgg(inFile, volume = 1.0) {
   const out = allocateTemp('ogg', 'ogg');
-  const args = ['-y', '-loglevel', 'error', '-i', inFile, '-acodec', 'libopus', '-application', 'voip', '-ar', '48000', '-ac', '2'];
-  if (Math.abs(volume - 1.0) > 0.01) args.push('-af', `volume=${volume}`);
+  const args = ['-y', '-loglevel', 'error', '-i', inFile, '-acodec', 'libopus', '-application', 'audio', '-frame_duration', '20', '-ar', '48000', '-ac', '2'];
+  if (Math.abs(volume - 1.0) > 0.01 || volume === 0) args.push('-af', `volume=${volume}`);
   args.push(out);
   try { await ff(args); return out; }
   catch (error) { try { fs.unlinkSync(out); } catch {} throw error; }
 }
 
 // stream (ex: YouTube) -> ogg/opus ao vivo pelo ffmpeg
-function streamToOpusOgg(inputStream, volume = 1.0) {
-  const args = ['-analyzeduration', '0', '-loglevel', 'error', '-i', 'pipe:0', '-acodec', 'libopus', '-application', 'audio', '-ar', '48000', '-ac', '2'];
-  if (Math.abs(volume - 1.0) > 0.01) args.push('-af', `volume=${volume}`);
+function streamToOpusOgg(inputStream, volume = 1.0, options = {}) {
+  if (options.pcm) return pcmToOpusOgg(inputStream, { ...(options.audioOptions || {}), volume }).stream;
+  const args = ['-analyzeduration', '0', '-loglevel', 'error', '-i', 'pipe:0', '-acodec', 'libopus', '-application', 'audio', '-frame_duration', '20', '-ar', '48000', '-ac', '2'];
+  if (Math.abs(volume - 1.0) > 0.01 || volume === 0) args.push('-af', `volume=${volume}`);
   args.push('-f', 'ogg', 'pipe:1');
   const proc = spawn(getFfmpegPath(), args, { windowsHide: true });
   let stderr = '';
+  proc.stdout.on('error', () => {});
   proc.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-1000); });
   proc.on('error', error => proc.stdout.destroy(error));
   proc.on('close', code => {
@@ -61,6 +67,41 @@ function streamToOpusOgg(inputStream, volume = 1.0) {
   proc.stdout.on('close', () => { inputStream.destroy(); proc.kill(); });
   inputStream.pipe(proc.stdin);
   return proc.stdout;
+}
+
+function pcmToOpusOgg(inputStream, { volume = 1, speed = 1, pitch = 0, equalizer = 'flat', denoise = false } = {}) {
+  const args = ['-hide_banner', '-loglevel', 'error', '-f', 's16le', '-ar', '24000', '-ac', '1', '-i', 'pipe:0'];
+  const filters = [];
+  if (denoise) filters.push('afftdn');
+  if (pitch) filters.push(`asetrate=24000*${Math.pow(2, pitch / 12)},aresample=48000`);
+  if (speed && Math.abs(speed - 1) > 0.01) filters.push(`atempo=${Math.max(.5, Math.min(2, speed))}`);
+  if (equalizer === 'voice') filters.push('highpass=f=90,lowpass=f=12000');
+  if (Math.abs(volume - 1) > 0.01 || volume === 0) filters.push(`volume=${volume}`);
+  if (filters.length) args.push('-af', filters.join(','));
+  args.push('-acodec', 'libopus', '-application', 'voip', '-frame_duration', '20', '-ar', '48000', '-ac', '2', '-f', 'ogg', 'pipe:1');
+  const proc = spawn(getFfmpegPath(), args, { windowsHide: true });
+  let stderr = '';
+  proc.stdout.on('error', () => {});
+  proc.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-1000); });
+  proc.on('error', error => proc.stdout.destroy(error));
+  proc.on('close', code => { if (code && !proc.killed) proc.stdout.destroy(new Error('FFmpeg: ' + stderr)); });
+  proc.stdin.on('error', error => { if (!proc.killed) proc.stdout.destroy(error); });
+  inputStream.on('error', error => proc.stdout.destroy(error));
+  inputStream.pipe(proc.stdin);
+  return { stream: proc.stdout, close: () => { try { inputStream.unpipe(proc.stdin); } catch {} try { proc.kill(); } catch {} } };
+}
+
+function fileToOpusStream(inFile, volume = 1.0) {
+  const args = ['-hide_banner', '-loglevel', 'error', '-i', inFile, '-acodec', 'libopus', '-application', 'audio', '-frame_duration', '20', '-ar', '48000', '-ac', '2'];
+  if (Math.abs(volume - 1.0) > 0.01 || volume === 0) args.push('-af', `volume=${volume}`);
+  args.push('-f', 'ogg', 'pipe:1');
+  const proc = spawn(getFfmpegPath(), args, { windowsHide: true });
+  let stderr = '';
+  proc.stdout.on('error', () => {});
+  proc.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-1000); });
+  proc.on('error', error => proc.stdout.destroy(error));
+  proc.on('close', code => { if (code && !proc.killed) proc.stdout.destroy(new Error('FFmpeg: ' + stderr)); });
+  return { stream: proc.stdout, close: () => { try { proc.kill(); } catch {} } };
 }
 
 // energia média do áudio (int16): voz real costuma dar >1000, chiado <300
@@ -82,6 +123,7 @@ class ZeroVoiceManager {
     this.active = new Map(); // guildId -> session
     this.pending = new Map();
     this.liveFactory = null;
+    this.recordings = new CallRecordings();
     this.sayText = async () => {}; // index.js injeta o envio p/ canal texto
 
     discord.on('voiceStateUpdate', (data) => {
@@ -169,7 +211,15 @@ class ZeroVoiceManager {
       musicVol: 0.7,
       deaf: false, // !muta liga: fica na call mas só responde texto
       selfId: this.discord.me.id,
-      decoder: new OpusScript(48000, 2)
+      decoders: new Map(),
+      captures: new Map(),
+      pendingSpeech: [],
+      responseTask: null,
+      responseAbort: null,
+      responseUserId: null,
+      musicState: 'parada',
+      musicError: '',
+      musicGeneration: 0
     };
     this.active.set(guildId, session);
     if (this.liveFactory) {
@@ -199,39 +249,134 @@ class ZeroVoiceManager {
   }
 
   async capture(guildId, session, userId) {
-    if (session.deaf) return; // modo !muta: só texto
-    // barge-in: se ela tava falando e alguém começou, ela cala a boca igual gente
-    if (session.playing) { session.speechQueue = []; try { session.player.stop(); } catch {} }
-    session.busy = true;
-    return (async () => {
-      const opus = session.connection.receiver.subscribe(userId, {
-        end: { behavior: EndBehaviorType.AfterSilence, duration: config.silenceMs || 1800 }
+    if (this.active.get(guildId) !== session) return;
+    const existing = session.captures.get(userId);
+    if (existing) return existing.task;
+    const live = session.live;
+    const liveEnabled = Boolean(live && !live.paused && !session.deaf);
+    const recordOnly = !liveEnabled && (session.deaf || live?.paused);
+    const activeAiCaptures = [...session.captures.values()].filter(item => !item.recordOnly).length;
+    if (liveEnabled && activeAiCaptures >= (live.options?.maxParticipants || 8)) return;
+    const stream = session.connection.receiver.subscribe(userId, {
+      end: { behavior: EndBehaviorType.AfterSilence, duration: live?.options?.incompleteMs || config.silenceMs || 1800 }
+    });
+    const decoder = session.decoders.get(userId) || new OpusScript(16000, 1);
+    session.decoders.set(userId, decoder);
+    const state = { stream, decoder, chunks: [], bytes: 0, voicedBytes: 0, interrupted: false, recordOnly, task: null };
+    session.captures.set(userId, state);
+    state.task = new Promise(resolve => {
+      const maxSeconds = live?.options?.maxUtteranceSeconds || config.maxVoiceSeconds || 15;
+      const timer = setTimeout(() => { try { stream.destroy(); } catch {} resolve(); }, maxSeconds * 1000);
+      timer.unref?.();
+      const finish = () => { clearTimeout(timer); resolve(); };
+      stream.on('data', packet => {
+        let pcm;
+        try { pcm = Buffer.from(decoder.decode(packet)); } catch { return; }
+        if (!pcm.length || pcm.length % 2) return;
+        if (this.recordings?.isActive(guildId)) {
+          const name = this.discord.users?.get(userId)?.global_name || this.discord.users?.get(userId)?.username || userId;
+          this.recordings.capture(guildId, userId, name, pcm);
+        }
+        if (liveEnabled && !live.paused && !session.deaf) live.ingest(userId, pcm);
+        if (!live && !recordOnly) { state.chunks.push(pcm); state.bytes += pcm.length; }
+        state.voicedBytes = rms(pcm) >= 300 ? state.voicedBytes + pcm.length : 0;
+        if (!state.interrupted && state.voicedBytes >= 16000 * 2 * 0.3) {
+          state.interrupted = this.interruptForSpeaker(session, userId);
+        }
       });
-      const chunks = [];
-      await new Promise((resolve) => {
-        const timer = setTimeout(resolve, (config.maxVoiceSeconds || 15) * 1000); // trava de segurança
-        opus.on('data', (c) => {
-          try {
-            const pcm = session.decoder.decode(c);
-            if (pcm && pcm.length) chunks.push(Buffer.from(pcm));
-          } catch {}
-        });
-        const fin = () => { clearTimeout(timer); resolve(); };
-        opus.on('end', fin);
-        opus.on('error', fin);
-        opus.on('close', fin);
+      stream.once('end', finish); stream.once('error', finish); stream.once('close', finish);
+    }).then(() => {
+      if (this.active.get(guildId) !== session || live || recordOnly || state.bytes < 3200) return;
+      const pcm = Buffer.concat(state.chunks);
+      if (rms(pcm) >= 300) this.queueSpeech(guildId, session, { userId, pcm, endedAt: Date.now() });
+    }).finally(() => {
+      try { stream.destroy(); } catch {}
+      if (session.captures.get(userId) === state) session.captures.delete(userId);
+    });
+    return state.task;
+  }
+
+  interruptForSpeaker(session, userId) {
+    const owner = String(process.env.OWNER_ID || '').trim();
+    if (session.responseUserId && userId !== session.responseUserId && userId !== owner) return false;
+    if (session.responseUserId && userId === owner && userId !== session.responseUserId) session.prioritySpeaker = userId;
+    let stopped = false;
+    for (const key of ['responseAbort', 'synthesisAbort', 'speechAbort']) {
+      const controller = session[key];
+      if (controller && !controller.signal?.aborted) { controller.abort(); stopped = true; }
+    }
+    if (session.playing || stopped) {
+      session.speechQueue = [];
+      try { session.player.stop(true); } catch {}
+      stopped = true;
+    }
+    return stopped;
+  }
+
+  queueSpeech(guildId, session, item) {
+    if (!item?.userId || !Buffer.isBuffer(item.pcm) || Date.now() - item.endedAt > 8000) return false;
+    const owner = String(process.env.OWNER_ID || '').trim();
+    const existing = session.pendingSpeech.findIndex(entry => entry.userId === item.userId);
+    if (existing >= 0) session.pendingSpeech[existing] = item;
+    else if (item.userId === owner) {
+      if (session.prioritySpeaker === item.userId) session.prioritySpeaker = null;
+      session.pendingSpeech.unshift(item);
+      if (session.pendingSpeech.length > 3) session.pendingSpeech.pop();
+    } else if (session.pendingSpeech.length < 2) session.pendingSpeech.unshift(item);
+    if (!session.responseTask) this.drainSpeech(guildId, session);
+    return true;
+  }
+
+  drainSpeech(guildId, session) {
+    if (session.responseTask || this.active.get(guildId) !== session) return session.responseTask;
+    session.pendingSpeech = session.pendingSpeech.filter(item => Date.now() - item.endedAt <= 8000);
+    if (session.prioritySpeaker && !session.pendingSpeech.some(item => item.userId === session.prioritySpeaker)) return null;
+    const item = session.pendingSpeech.shift();
+    if (!item) return null;
+    const abort = new AbortController();
+    session.responseAbort = abort; session.responseUserId = item.userId;
+    const wavPath = allocateTemp('heard', 'wav');
+    fs.writeFileSync(wavPath, wavBuffer(item.pcm, 16000, 1));
+    const task = Promise.resolve().then(() => this.onSpeech(item.userId, wavPath, guildId, { abort }))
+      .catch(error => { if (!abort.signal.aborted) console.error('[voz] erro onSpeech:', error.message); })
+      .finally(() => {
+        try { fs.unlinkSync(wavPath); } catch {}
+        if (session.responseAbort === abort) session.responseAbort = null;
+        if (session.responseUserId === item.userId) session.responseUserId = null;
+        if (session.responseTask === task) session.responseTask = null;
+        this.drainSpeech(guildId, session);
       });
-      try { opus.destroy(); } catch {}
-      if (this.active.get(guildId) !== session) return;
-      const pcm = chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0);
-      if (pcm.length < 48000) return; // curto demais (~0.25s, precisa de pelo menos "oi thalita")
-      if (rms(pcm) < 300) { console.log('[voz] áudio fraco demais (só ruído), ignorando'); return; }
-      const wavPath = allocateTemp('heard', 'wav');
-      fs.writeFileSync(wavPath, wavBuffer(pcm));
-      try { await this.onSpeech(userId, wavPath, guildId); }
-      catch (e) { console.error('[voz] erro onSpeech:', e.message); }
-      finally { try { fs.unlinkSync(wavPath); } catch {} }
-    })().finally(() => { session.busy = false; });
+    session.responseTask = task;
+    return task;
+  }
+
+  startRecording(guildId) {
+    const session = this.active.get(guildId);
+    if (!session) throw new Error('Entre em uma call antes de gravar.');
+    return this.recordings.start(guildId, session.channelId);
+  }
+
+  stopRecording(guildId, reason = 'operator') {
+    return this.recordings.stop(guildId, reason);
+  }
+
+  recordPlayback(guildId, session, resource) {
+    if (!resource || typeof resource.read !== 'function' || resource._recordingWrapped) return resource;
+    resource._recordingWrapped = true;
+    const original = resource.read.bind(resource);
+    let ended = false;
+    resource.playStream?.once?.('end', () => { ended = true; });
+    resource.playStream?.once?.('close', () => { ended = true; });
+    resource.read = (...args) => {
+      const pcm = original(...args);
+      if (!ended && Buffer.isBuffer(pcm) && pcm.length && this.recordings?.isActive(guildId)) {
+        const id = session.selfId || this.discord.me?.id || 'bot';
+        const name = this.discord.me?.username || 'Neva7';
+        this.recordings.capture(guildId, id, name, pcm, { bot: true });
+      }
+      return pcm;
+    };
+    return resource;
   }
 
   async playPcmStream(guildId, stream, { signal, onPlaying = () => {}, audioOptions = {}, maxDuration = 30000 } = {}) {
@@ -241,54 +386,26 @@ class ZeroVoiceManager {
     if (stream == null || typeof stream.on !== 'function' || typeof stream.pipe !== 'function') {
       throw new Error('stream PCM inválida');
     }
-    const pcm = [];
-    let total = 0;
-    let ended = false;
-    let aborted = false;
-    const maxSamples = Math.max(1, Math.floor((maxDuration || 30000) / 1000 * 48000 * 2));
-    const cleanup = () => { if (signal) signal.removeEventListener?.('abort', onAbort); };
-    const onAbort = () => { aborted = true; cleanup(); try { stream.destroy(); } catch {} };
-    if (signal) signal.addEventListener('abort', onAbort, { once: true });
-    const done = new Promise((resolve, reject) => {
-      const fail = (error) => { cleanup(); reject(error); };
-      const onData = (chunk) => {
-        if (aborted || signal?.aborted) { cleanup(); return; }
-        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        if (!buf.length) return;
-        total += buf.length;
-        if (total > maxSamples) { cleanup(); reject(new Error('áudio PCM excedeu o limite da resposta')); return; }
-        pcm.push(buf);
-      };
-      const onEnd = () => { ended = true; cleanup(); resolve(true); };
-      const onError = (error) => { cleanup(); reject(error); };
-      stream.on('data', onData);
-      stream.on('end', onEnd);
-      stream.on('close', () => { if (!ended && !aborted) resolve(false); });
-      stream.on('error', onError);
-    });
+    const abort = new AbortController();
+    const cancel = () => abort.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    session.speechAbort?.abort(); session.speechAbort = abort;
+    const encoded = pcmToOpusOgg(stream, audioOptions);
+    const resource = createAudioResource(encoded.stream, { inputType: StreamType.OggOpus });
+    this.recordPlayback(guildId, session, resource);
+    const timer = setTimeout(() => abort.abort(), maxDuration + 5000); timer.unref?.();
     try {
-      const started = new Promise((resolve) => {
-        const onStart = () => { if (!aborted && !signal?.aborted) { onPlaying(); resolve(); } };
-        stream.once('data', onStart);
-        setTimeout(() => resolve(), 50);
-      });
-      await Promise.race([started, done]);
-      if (signal?.aborted || aborted) return false;
-      const buffer = Buffer.concat(pcm);
-      if (!buffer.length) return false;
-      const ogg = await fileToOpusOgg(wavBuffer(buffer, 48000, 2), audioOptions.volume ?? 1.0);
-      try {
-        const resource = createAudioResource(ogg, { inputType: StreamType.OggOpus });
-        session.player.play(resource);
-        await entersState(session.player, AudioPlayerStatus.Playing, 15000);
-        await entersState(session.player, AudioPlayerStatus.Idle, Math.max(15000, maxDuration + 5000));
-        return true;
-      } finally {
-        try { fs.unlinkSync(ogg); } catch {}
-      }
+      session.player.play(resource);
+      await entersState(session.player, AudioPlayerStatus.Playing, 15000);
+      if (!abort.signal.aborted) onPlaying();
+      await entersState(session.player, AudioPlayerStatus.Idle, Math.max(15000, maxDuration + 5000));
+      return !abort.signal.aborted;
     } catch (error) {
-      if (signal?.aborted || aborted) return false;
+      if (abort.signal.aborted || signal?.aborted) return false;
       throw error;
+    } finally {
+      clearTimeout(timer); signal?.removeEventListener('abort', cancel); encoded.close();
+      if (session.speechAbort === abort) session.speechAbort = null;
     }
   }
 
@@ -297,7 +414,7 @@ class ZeroVoiceManager {
   }
 
   // toca vários mp3 em sequência; cada um é convertido p/ ogg/opus NATIVO antes (sem engasgo)
-  async playFiles(guildId, mp3s) {
+  async playFiles(guildId, mp3s, { signal, onPlaying = () => {} } = {}) {
     const session = this.active.get(guildId);
     if (!session) throw new Error('não tô em call');
     if (session.playing) return;
@@ -312,10 +429,14 @@ class ZeroVoiceManager {
         oggs.push(ogg);
         if (this.active.get(guildId) !== session) break;
         const resource = createAudioResource(ogg, { inputType: StreamType.OggOpus });
+        this.recordPlayback(guildId, session, resource);
         session.player.play(resource);
         await entersState(session.player, AudioPlayerStatus.Playing, 15000);
+        if (!signal?.aborted) onPlaying();
         await entersState(session.player, AudioPlayerStatus.Idle, 45000);
+        if (signal?.aborted) return false;
       }
+      return true;
     } finally {
       session.playing = false;
       session.speechQueue = [];
@@ -332,74 +453,85 @@ class ZeroVoiceManager {
   async enqueueMusic(guildId, tracks) {
     const session = this.active.get(guildId);
     if (!session) throw new Error('não tô em call');
+    if (!Number.isInteger(session.musicGeneration)) session.musicGeneration = 0;
     session.tracks = (session.tracks || []).concat(tracks);
-    if (!session.musicLoop) this.pumpMusic(guildId, session).catch(e => console.error('[musica] erro:', e.message));
+    session.musicError = '';
+    if (!session.musicDone || session.musicTaskGeneration !== session.musicGeneration) {
+      const generation = ++session.musicGeneration;
+      session.musicTaskGeneration = generation;
+      const task = this.pumpMusic(guildId, session, generation)
+        .catch(error => { session.musicError = error.message; console.error('[musica] erro:', error.message); })
+        .finally(() => {
+          if (session.musicDone === task) {
+            session.musicDone = null; session.musicLoop = false; session.musicBusy = false; session.currentTrack = null;
+            if (!session.tracks.length) session.musicState = 'parada';
+          }
+        });
+      session.musicDone = task;
+    }
     return session.tracks.length;
   }
 
-  async pumpMusic(guildId, session) {
+  async pumpMusic(guildId, session, generation) {
     session.musicLoop = true;
-    try {
-      while (session.tracks.length && this.active.has(guildId)) {
-        const t = session.tracks[0];
-        session.musicBusy = true;
-        session.killPipe = null;
-        try {
-          console.log('[musica] tocando:', t.title);
-          let resource;
-          let oggFile = null;
-          if (t.kind === 'yt') {
-            const play = require('play-dl');
-            const s = await play.stream(t.url);
-            t._s = s;
-            const ff = streamToOpusOgg(s.stream, session.musicVol ?? 0.7);
-            session.killPipe = () => { try { s.stream.destroy(); } catch {} try { ff.destroy(); } catch {} };
-            resource = createAudioResource(ff, { inputType: StreamType.OggOpus });
-          } else {
-            oggFile = await fileToOpusOgg(t.file, session.musicVol ?? 0.7);
-            resource = createAudioResource(oggFile, { inputType: StreamType.OggOpus });
-          }
-          session.player.play(resource);
-          await entersState(session.player, AudioPlayerStatus.Idle, 15 * 60 * 1000).catch(() => {});
-          if (oggFile) { try { fs.unlinkSync(oggFile); } catch {} }
-        } catch (e) {
-          console.error('[musica] falhou:', t.title, (e.message || '').slice(0, 150));
-          if (/410|403|429|player|stream|url|sign|token|ffmpeg/i.test(e.message || '')) {
-            try { await this.sayText(guildId, '⚠️ Não consegui tocar (YouTube barrou ou ffmpeg falhou). Baixa o áudio em .mp3 e manda com `!toca` anexando o arquivo.'); } catch {}
-          }
-        } finally {
-          // loop: move pro final da fila em vez de remover
-          if (session.loopEnabled && !t.tmp) {
-            session.tracks.push(session.tracks.shift());
-          } else {
-            session.tracks.shift();
-          }
-          try { if (session.killPipe) session.killPipe(); } catch {}
-          session.killPipe = null;
-          try { if (t._s) t._s.stream.destroy(); } catch {}
-          try { if (t.tmp) fs.unlinkSync(t.file); } catch {}
+    while (session.tracks.length && this.active.get(guildId) === session && session.musicGeneration === generation) {
+      if (session.speechDone) await Promise.resolve(session.speechDone).catch(() => {});
+      if (session.musicGeneration !== generation || !session.tracks.length) break;
+      const track = session.tracks[0];
+      const abort = new AbortController(); session.musicAbort = abort;
+      session.currentTrack = track; session.musicBusy = true; session.musicState = 'carregando';
+      let source, encoded, played = false;
+      try {
+        console.log('[musica] tocando:', track.title);
+        if (track.kind === 'yt') {
+          source = openYouTubeStream(track.url);
+          const stream = streamToOpusOgg(source, session.musicVol ?? 0.7);
+          encoded = { stream, close: () => { try { source.destroy(); } catch {} try { stream.destroy(); } catch {} } };
+        } else encoded = fileToOpusStream(track.file, session.musicVol ?? 0.7);
+        if (abort.signal.aborted || session.musicGeneration !== generation) continue;
+        const resource = createAudioResource(encoded.stream, { inputType: StreamType.OggOpus });
+        played = await playResource(session.player, resource, {
+          signal: abort.signal,
+          onPlaying: () => { session.musicState = 'tocando'; },
+          maxDuration: 15 * 60 * 1000
+        });
+        if (!played && !abort.signal.aborted) throw new Error('A reprodução não começou.');
+      } catch (error) {
+        if (!abort.signal.aborted) {
+          session.musicError = error.message || 'Falha ao reproduzir a música.';
+          logger.music?.error?.(track.title, session.musicError.slice(0, 150));
         }
+      } finally {
+        encoded?.close();
+        if (session.musicAbort === abort) session.musicAbort = null;
+        const stillCurrent = session.tracks[0] === track;
+        if (stillCurrent) {
+          session.tracks.shift();
+          if (played && session.loopEnabled && !track.tmp && session.musicGeneration === generation) session.tracks.push(track);
+        }
+        if (track.tmp) { try { fs.unlinkSync(track.file); } catch {} }
+        session.currentTrack = null;
       }
-    } finally {
-      session.musicLoop = false;
-      session.musicBusy = false;
     }
   }
 
   skipTrack(guildId) {
     const s = this.active.get(guildId);
-    if (!s) return false;
-    try { if (s.killPipe) s.killPipe(); } catch {}
-    try { s.player.stop(); } catch {}
+    if (!s || (!s.currentTrack && !s.tracks?.length)) return false;
+    if (!s.currentTrack && s.tracks.length) s.tracks.shift();
+    s.musicAbort?.abort();
+    try { s.player.stop(true); } catch {}
     return true;
   }
 
   stopMusic(guildId) {
     const s = this.active.get(guildId);
-    if (!s) return false;
+    if (!s || (!s.currentTrack && !s.tracks?.length && !s.musicDone)) return false;
+    s.musicGeneration++;
     s.tracks = [];
-    try { if (s.killPipe) s.killPipe(); } catch {}
-    try { s.player.stop(); } catch {}
+    s.musicAbort?.abort();
+    try { s.player.stop(true); } catch {}
+    s.musicState = 'parada'; s.currentTrack = null;
     return true;
   }
 
@@ -415,6 +547,10 @@ class ZeroVoiceManager {
     const s = this.active.get(guildId);
     if (!s) return false;
     s.deaf = !on;
+    s.live?.pause?.(!on);
+    if (!on && !this.recordings?.isActive(guildId)) {
+      for (const capture of s.captures?.values() || []) { try { capture.stream.destroy(); } catch {} }
+    }
     return true;
   }
 
@@ -422,8 +558,9 @@ class ZeroVoiceManager {
     const s = this.active.get(guildId);
     if (!s || !s.tracks?.length) return false;
     // embaralha a fila (Fisher-Yates)
-    for (let i = s.tracks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+    const start = s.currentTrack && s.tracks[0] === s.currentTrack ? 1 : 0;
+    for (let i = s.tracks.length - 1; i > start; i--) {
+      const j = start + Math.floor(Math.random() * (i - start + 1));
       [s.tracks[i], s.tracks[j]] = [s.tracks[j], s.tracks[i]];
     }
     return true;
@@ -446,7 +583,14 @@ class ZeroVoiceManager {
     const session = this.active.get(guildId);
     if (!session) return;
     this.active.delete(guildId);
+    session.musicGeneration++;
+    for (const key of ['responseAbort', 'synthesisAbort', 'speechAbort', 'musicAbort']) session[key]?.abort?.();
     session.speechQueue = [];
+    session.pendingSpeech = [];
+    for (const capture of session.captures?.values() || []) { try { capture.stream.destroy(); } catch {} }
+    session.captures?.clear();
+    session.live?.close?.();
+    this.recordings?.stop?.(guildId, 'left-call');
     for (const track of session.tracks) {
       if (track.tmp) { try { fs.unlinkSync(track.file); } catch {} }
     }
@@ -455,7 +599,8 @@ class ZeroVoiceManager {
     for (const subscription of session.connection.receiver?.subscriptions?.values() || []) subscription.destroy();
     try { session.player.stop(true); } catch {}
     try { session.connection.destroy(); } catch {}
-    try { session.decoder.delete(); } catch {}
+    for (const decoder of session.decoders?.values() || []) { try { decoder.delete(); } catch {} }
+    session.decoders?.clear();
   }
 
   get(guildId) {
@@ -471,4 +616,4 @@ class ZeroVoiceManager {
   }
 }
 
-module.exports = { ZeroVoiceManager, hasFfmpeg };
+module.exports = { ZeroVoiceManager, hasFfmpeg, streamToOpusOgg };

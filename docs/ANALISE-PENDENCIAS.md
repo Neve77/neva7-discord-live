@@ -1,15 +1,15 @@
-# Pendências verificadas — 23/09/2026
+# Pendências verificadas — atualizado em 27/09/2026
 
-A versão atual tem boa parte dos módulos e do painel, mas o transporte de voz não implementa mais contratos que os outros arquivos esperam. A prioridade é restaurar essa integração antes de ampliar os efeitos sonoros. Esta análise não altera a conta Discord nem reinicia o programa.
+A integração do transporte de voz foi restaurada. Voz Live, captura simultânea, interrupção, gravação e música compartilham agora ciclos explícitos de reprodução e cancelamento. A prioridade seguinte é validar a experiência em uma call real e concluir os efeitos sonoros.
 
-## 1. Bloqueios principais
+## 1. Núcleo concluído
 
-| Prioridade | Constatação | Consequência e trabalho necessário |
+| Área | Situação atual | Verificação |
 | --- | --- | --- |
-| Crítica | `src/voice.js` não fornece `setLiveFactory`, `playPcmStream`, `startRecording`, `recordPlayback` e o coordenador de turnos usado pelos testes. | Live, streaming Gemini, gravação da call e interrupções estão incompatíveis com `index.js`, `panel-controller.js` e os testes. Restaurar o contrato do transporte preservando as alterações atuais do projeto. |
-| Crítica | `index.js:355` só cria `LiveService` quando `setLiveFactory` existe. O painel depende de `/api/live` para concluir o primeiro carregamento (`dashboard.js:127`). | Numa nova inicialização, o serviço fica nulo, `/api/live` retorna erro e a interface não conclui o carregamento. Os bloqueios globais instalados pelo serviço também ficam ausentes. O painel precisa permanecer utilizável mesmo quando Live estiver indisponível. |
-| Alta | `call-recordings.js` está presente e funciona isoladamente, mas `ZeroVoiceManager` não instancia nem alimenta o gravador. | O botão Iniciar gravação chama um método inexistente. Conectar entrada PCM, saída efetivamente reproduzida, parada e encerramento ao gravador. |
-| Alta | A reprodução de música em `voice.js:280` usa `require('play-dl')`, dependência ausente. Também diverge do cancelamento e acompanhamento de estado esperados pelos testes. | Reprodução do YouTube e controles de fila precisam voltar a usar o transporte disponível no projeto (`youtube.js`) e um ciclo de reprodução cancelável. Apenas instalar a dependência antiga não resolve o restante. |
+| Voz Live | PCM é encaminhado durante a fala, com decoder e captura independentes por participante. | Testes de voz e encoder PCM → Ogg/Opus passando. |
+| Interrupção | Ruído isolado não interrompe; 300 ms de voz contínua cancelam resposta, síntese e reprodução conforme a prioridade. | Casos simultâneos, fila e prioridade do dono passando. |
+| Gravação | Entrada de participantes e saída do bot usam a mesma sessão; sair da call finaliza a gravação. | Testes de faixas, limites, recuperação e mixagem passando. |
+| Música | Player usa `yt-dlp`, FFmpeg e cancelamento próprio; não depende mais de `play-dl`. | Fila, parada durante preparação, pulo, loop e erros passando. |
 
 ## 2. Efeitos sonoros: o que existe e o que falta
 
@@ -24,15 +24,14 @@ Já existem `src/sound-effects.js`, lista em Voz, prévia local, importação po
 
 Melhorias de uso posteriores: renomear/remover, favoritos, filtro de busca, volume próprio dos efeitos e catálogo do Myinstants dentro do painel. São incrementos; não substituem os bloqueios acima.
 
-## 3. Verificação executada
+## 3. Verificação executada após a correção
 
 | Verificação | Resultado |
 | --- | --- |
-| Testes fora de `voice.test.js` e `music.test.js` | 172 passaram. Inclui jitter, REST, busca de membros, idiomas e testes isolados do Live. |
-| `voice.test.js`, executado isoladamente | 15 testes: 4 passaram, 11 falharam. Há erros de métodos ausentes e falhas de cancelamento, captura e gravação. |
-| `music.test.js`, executado isoladamente | 3 falhas observadas; não concluiu e foi encerrado após 5 segundos. Não há contagem final válida dessa suíte. |
-| `npm.cmd test` completo | Não concluiu; não é correto afirmar que a versão atual está com todos os testes passando. |
-| `scripts/check-live-audio.js` | Falhou: `streamToOpusOgg is not a function`. |
+| Suíte completa | 216 testes passaram; nenhum falhou, foi cancelado ou ficou pendente. |
+| `voice.test.js` | 18 testes passaram, incluindo captura simultânea, Live, fila, interrupção e gravação. |
+| `music.test.js` | 6 testes passaram e o processo encerrou normalmente. |
+| `scripts/check-live-audio.js` | Passou: PCM mono 24 kHz convertido em streaming para Ogg/Opus. |
 | `scripts/check-recording-audio.js` | Passou: mixagem real com FFmpeg de dois sinais sintéticos, sobreposição e silêncio preservados. Não valida a integração com Discord. |
 | Upload por HTTP, com controlador simulado | Arquivo de 16.000 bytes bloqueado pelo limite de corpo; nenhuma importação ou mensagem real executada. |
 | Painel em `127.0.0.1:3210` durante esta análise | Indisponível. Não houve reinício ou teste em call real. |
@@ -41,9 +40,9 @@ Saídas detalhadas: `.recon/analysis-tests.txt`, `.recon/analysis-voice-tests.tx
 
 ## 4. Ordem recomendada
 
-1. Reconciliar `voice.js` com os contratos de Live, gravação, streaming, cancelamento e fila; obter testes de voz e música passando.
-2. Garantir carregamento do painel e controles de segurança mesmo quando o provider Live estiver indisponível.
-3. Concluir a importação e reprodução dos efeitos, com upload funcional, MP3 extraído do Myinstants e prévia estável.
-4. Validar em uma call real: gravação, efeito ouvido pelos participantes, interrupção, reconexão e PT-BR/ES/EN. Os testes locais não comprovam rede, permissões ou qualidade percebida da voz.
+1. Validar em uma call real: gravação, música, interrupção, reconexão e PT-BR/ES/EN. Os testes locais não comprovam rede, permissões ou qualidade percebida da voz.
+2. Concluir a importação e reprodução dos efeitos, com upload funcional, MP3 extraído do Myinstants e prévia estável.
+3. Adicionar um assistente de primeira configuração e diagnóstico guiado no painel.
+4. Medir latência percebida, gaps de captura e tempo até o primeiro áudio em sessões reais.
 
 Continuam como limites ou extensões documentados em `LIVE.md`: medição real de perda de pacotes, cancelamento acústico de eco, redução neural de ruído na entrada, resumo semântico do contexto e ferramentas além de relógio/calculadora. O Cascade atual também aguarda a transcrição completa; não oferece STT incremental.
